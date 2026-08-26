@@ -5,10 +5,12 @@ compatibility: works with any agent that can read/list/grep files and write a ne
 ---
 
 <!--
-  Canonical source: <fill in your repo URL here before publishing, e.g.
-  github.com/<you>/<repo> — a copy of this file that doesn't match the
-  canonical source above may be stale or altered. Check there if in doubt.>
-  Version: 0.1.0 (first public draft)
+  Canonical source: github.com/Singhson91/Audit_Ur_Harness — a copy of this
+  file that doesn't match the canonical source above may be stale or altered.
+  Check there if in doubt.
+  Version: 0.2.0 (first public release — adds agent-identified layers, N/A
+  handling, the rejection log, and the report's Accept/Reject controls on
+  top of the original 8-layer core audit)
 -->
 
 # Audit ur Harness
