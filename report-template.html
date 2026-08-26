@@ -1,0 +1,581 @@
+<!--
+  HARNESS AUDIT -- REPORT TEMPLATE (for the agent generating a report, not the end reader)
+
+  IMPORTANT FOR WHOEVER EDITS THIS FILE: never write the literal 4-character
+  close-comment sequence (two hyphens plus a greater-than sign) anywhere
+  inside a comment block, including as an example or a cross-reference to
+  another marker's name -- doing that closes the comment early and dumps
+  the rest of it onto the rendered page as visible text. Refer to markers by
+  their plain name in prose instead (for example "the layer rows markers"),
+  never by typing out the actual bracketed syntax inside this block.
+
+  This file is both a working example AND the template to copy from. It
+  ships pre-filled with EXAMPLE DATA (clearly marked) so it renders
+  correctly as-is. When generating a real report:
+    1. Copy this whole file to harness/report.html in the target project.
+    2. Replace every double-curly-brace token, and replace each layer card
+       (the whole details element, summary and body together) between the
+       layer-rows markers found later in this file, with the real project's
+       data. Every Applicable layer needs one full card; every N/A layer
+       needs one plain one-line row; never leave a layer out of the chart
+       entirely -- a reader should see, for each of the 8 core layers,
+       either a score or a one-line reason it doesn't apply here.
+    3. Bar width formula: percentage width equals the score divided by
+       three, times one hundred. Never hand-eyeball this.
+    4. Status color, icon, and label mapping is fixed, do not invent new
+       ones. Score zero: critical class, cross icon, label Absent. Score
+       one: serious class, triangle icon, label Named. Score two: warning
+       class, half icon, label Partial. Score three: good class, circle
+       icon, label Enforced.
+    5. Interaction: each Applicable layer is a native details/summary
+       element. The bar and its one-line mark are always visible in the
+       summary; clicking anywhere on that row expands it in place to show
+       its citation, reasoning, and (for a 0 or 1 score) its suggestion --
+       there is no separate "Evidence & suggestions" section further down
+       the page. Keep the short hint line above the chart telling the
+       reader they can click a row.
+    6. N/A layers are not clickable and have nothing to expand -- they are
+       a plain, muted, one-line row: the layer name and the one-sentence
+       reasoning from the Applicability pass, nothing else. Never score an
+       N/A layer, and never give it a bar.
+    7. A suggestion block only belongs inside a layer's expanded body when
+       that layer scored 0 or 1. A layer at 2 or 3 gets its evidence
+       paragraph and nothing else. An N/A layer gets neither.
+    8. Sparkline history is optional -- omit the whole trend block for a
+       layer's card on a project's first-ever report, since there is
+       nothing to trend yet.
+    9. Project-specific layers are optional and come in two kinds, kept in
+       clearly separate sub-sections: confirmed custom layers (defined by a
+       human in harness/config.md, scored and displayed exactly like a core
+       layer) and agent-identified layers (a pattern you noticed during
+       Gather that didn't fit any core layer -- grounded in a real citation,
+       scored 0-3 in full exactly like any other layer, but never folded
+       into the core-8 stats, and shown with a dashed border and a "Not yet
+       persisted" badge so nobody mistakes a fresh finding for a durable,
+       run-to-run-comparable one). Always pair an agent-identified layer with
+       a suggestion to add it to harness/config.md -- but never write that
+       file yourself; that decision is the human's, not this skill's.
+   10. Colors below are read from a screenshot of the site this report's
+       look is based on, not picked from source -- nudge the CSS custom
+       properties at the top if the real values differ.
+   11. Rejected layers get their own tab, not a repeated proposal. If a human
+       has explicitly declined an agent-identified layer, it's recorded in
+       harness/rejected.md and must never appear again in the Active tab of
+       the Project-specific layers section on a later run -- move it to the
+       Rejected tab instead (same card style, muted, badged "Rejected",
+       showing its original evidence for reference). The two tabs are plain
+       CSS (radio inputs plus labels) -- no JavaScript, so this still works
+       with scripting disabled. Omit the whole tab control and just show the
+       Active content directly if there is nothing in harness/rejected.md yet.
+   12. Accept/Reject buttons on a still-undecided agent-identified layer are a
+       preview, not a save. This file has no server, so nothing clicked in it
+       can write to harness/config.md or harness/rejected.md -- only the
+       agent can, and only after the human hands it the highlighted block.
+       What the buttons DO give the reader: Reject instantly hides that
+       layer's card from the Active panel and reveals a matching "mirror"
+       card in the Rejected panel (via a hidden checkbox plus a `:checked ~`
+       CSS rule reaching both panels -- see #reject-data-retention and its
+       two rules), carrying the exact harness/rejected.md block to relay.
+       Accept is a same-page link to the suggestion block's id, highlighted
+       via `:target` on click -- no hiding needed, since the layer stays
+       visible either way until config.md actually has it. Give every
+       agent-identified layer its own uniquely-slugged checkbox id, pending
+       card id, and mirror card id (swap "data-retention" for that layer's
+       own slug throughout) -- reusing one checkbox for two different
+       layers would toggle both at once. Leave the mirror card out entirely,
+       and skip the checkbox and decision-row, once a layer is already
+       confirmed in config.md or already recorded in rejected.md -- the
+       controls only apply to a still-undecided finding. The "Rejected (N)"
+       count in the tab label reflects only entries actually confirmed in
+       harness/rejected.md -- never count an unrelayed in-browser Reject
+       click toward it.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Audit ur Harness -- {{PROJECT_NAME}}</title>
+<style>
+:root{
+  --bg:#0a0a0a; --surface:#141414; --surface-2:#1c1c1c; --border:rgba(255,255,255,0.09);
+  --text-primary:#f5f5f4; --text-secondary:#9c9c98; --text-muted:#6b6b68;
+  --track:#232322;
+  --accent:#ec1876; --accent-soft:rgba(236,24,118,0.14);
+  --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
+}
+*{box-sizing:border-box;}
+body{margin:0; background:var(--bg); color:var(--text-primary);
+  font-family:system-ui,-apple-system,"Segoe UI",sans-serif; line-height:1.6;}
+.wrap{max-width:840px; margin:0 auto; padding:2.5rem 1.25rem 4rem;}
+h1,h2{font-family:"Space Grotesk",system-ui,-apple-system,sans-serif; font-weight:700;}
+h1{font-size:1.9rem; margin:0 0 .3rem; letter-spacing:-0.01em;}
+.sub{color:var(--text-secondary); margin:0 0 .3rem; font-size:.95rem;}
+.badge-example{display:inline-block; background:var(--warning); color:#1a1204; font-size:.7rem;
+  font-weight:700; letter-spacing:.06em; text-transform:uppercase; padding:.25rem .55rem; border-radius:3px; margin-bottom:1.1rem;}
+.limitation{background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--serious);
+  border-radius:4px; padding:.9rem 1.1rem; font-size:.88rem; color:var(--text-secondary); margin:1rem 0 2rem;}
+.stat-row{display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:.8rem; margin:1.5rem 0 2rem;}
+.stat-tile{background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:1rem 1.1rem;}
+.stat-tile .num{font-size:1.8rem; font-weight:700; font-family:"Space Grotesk",system-ui,sans-serif;}
+.stat-tile .label{font-size:.78rem; color:var(--text-secondary); margin-top:.2rem;}
+h2{font-size:1.2rem; margin:2.2rem 0 .3rem; padding-top:1.4rem; border-top:1px solid var(--border); letter-spacing:-0.005em;}
+.chart-hint{font-size:.8rem; color:var(--text-muted); margin:0 0 .8rem;}
+.chart{background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:.4rem 1.5rem; margin-bottom:1rem;}
+.layer-card{border-bottom:1px solid var(--border);}
+.layer-card:last-of-type{border-bottom:none;}
+.layer-card summary{list-style:none; cursor:pointer;}
+.layer-card summary::-webkit-details-marker{display:none;}
+.layer-card summary::marker{content:"";}
+.layer-card summary:hover .name b{color:var(--accent);}
+.layer-row{display:grid; grid-template-columns:190px 1fr 16px; gap:.8rem; align-items:center; padding:.9rem 0;}
+.layer-row.is-na{grid-template-columns:190px 1fr; opacity:.65;}
+.layer-row .name{font-size:.86rem; color:var(--text-secondary);}
+.layer-row .name b{color:var(--text-primary); display:block; font-size:.86rem; font-weight:600;}
+.bar-col{display:flex; flex-direction:column; gap:.35rem;}
+.track{position:relative; height:14px; background:var(--track); border-radius:20px; overflow:hidden;}
+.fill{position:absolute; left:0; top:0; height:100%; border-radius:20px;}
+.fill.st-critical{background:var(--critical);} .fill.st-serious{background:var(--serious);}
+.fill.st-warning{background:var(--warning);} .fill.st-good{background:var(--good);}
+.mark{display:flex; align-items:center; gap:.35rem; font-size:.78rem; font-weight:600;}
+.mark svg{width:12px; height:12px; flex:none;}
+.mark.st-critical{color:var(--critical);} .mark.st-serious{color:var(--serious);}
+.mark.st-warning{color:var(--warning);} .mark.st-good{color:var(--good);}
+.chev{color:var(--text-muted); font-size:.65rem; justify-self:end; transition:transform .15s ease;}
+details[open] .chev{transform:rotate(180deg);}
+.na-pill{display:inline-block; font-size:.65rem; text-transform:uppercase; letter-spacing:.05em;
+  color:var(--text-muted); border:1px solid var(--border); border-radius:3px; padding:.05rem .4rem; margin-right:.5rem;}
+.na-note{font-size:.8rem; color:var(--text-muted); font-style:italic;}
+.cand-badge{display:inline-block; font-size:.65rem; text-transform:uppercase; letter-spacing:.05em;
+  color:var(--accent); border:1px solid var(--accent-soft); background:var(--accent-soft); border-radius:3px;
+  padding:.05rem .4rem; margin-left:.5rem; font-style:normal; font-weight:700;}
+.layer-body{padding:0 0 1.1rem;}
+.candidates{margin-top:.6rem;}
+.candidates .layer-card{border:1px dashed var(--border); border-radius:10px; padding:0 .9rem; margin-bottom:.7rem; border-bottom:1px dashed var(--border);}
+.layer-tabs{margin-top:.6rem;}
+.layer-tabs > input{position:absolute; opacity:0; pointer-events:none;}
+.tab-bar{display:flex; gap:.5rem; margin-bottom:.9rem;}
+.tab-bar label{cursor:pointer; font-size:.8rem; font-weight:600; color:var(--text-secondary);
+  padding:.5rem 1rem; border:1px solid var(--border); border-radius:8px; background:var(--surface); user-select:none;}
+#tab-active:checked ~ .tab-bar label[for="tab-active"],
+#tab-rejected:checked ~ .tab-bar label[for="tab-rejected"]{color:var(--text-primary); background:var(--accent-soft); border-color:var(--accent);}
+.tab-panel{display:none;}
+#tab-active:checked ~ .tab-panel.panel-active{display:block;}
+#tab-rejected:checked ~ .tab-panel.panel-rejected{display:block;}
+/* Reject checkbox for a still-undecided agent-identified layer: hides its
+   Active card and reveals its Rejected mirror, instantly, no JavaScript.
+   Duplicate this pair (id + two rules) for every additional agent-identified
+   layer, swapping the -data-retention id suffix for a slug unique to it. */
+#reject-data-retention:checked ~ .panel-active #pending-data-retention{display:none;}
+#reject-data-retention:checked ~ .panel-rejected #pending-data-retention-rejected{display:block;}
+.rejected-card{opacity:.7;}
+.rejected-badge{display:inline-block; font-size:.65rem; text-transform:uppercase; letter-spacing:.05em; color:var(--critical);
+  border:1px solid var(--critical); border-radius:3px; padding:.05rem .4rem; margin-left:.5rem; font-weight:700;}
+.rejected-meta{font-size:.76rem; color:var(--text-muted); margin:.5rem 0 0; font-style:italic;}
+.decision-row{display:flex; gap:.6rem; margin-top:.8rem; flex-wrap:wrap;}
+.btn-decision{cursor:pointer; font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em;
+  padding:.4rem .8rem; border-radius:6px; border:1px solid var(--border); user-select:none; background:var(--bg);
+  text-decoration:none; display:inline-block;}
+.btn-accept{color:var(--good); border-color:var(--good);}
+.btn-reject{color:var(--critical); border-color:var(--critical);}
+.reminder-note{font-size:.78rem; color:var(--serious); background:rgba(236,131,90,0.1); border:1px solid var(--serious);
+  border-radius:6px; padding:.55rem .75rem; margin-top:.7rem;}
+.suggestion:target{outline:2px solid var(--accent); outline-offset:2px;}
+.pending-mirror{display:none;}
+.just-rejected-badge{display:inline-block; font-size:.65rem; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted);
+  border:1px solid var(--border); border-radius:3px; padding:.05rem .4rem; margin-left:.5rem; font-weight:700;}
+.evidence{background:var(--surface-2); border:1px solid var(--border); border-left:3px solid var(--text-muted);
+  border-radius:0 10px 10px 0; padding:.9rem 1.1rem; margin:0;}
+.evidence.st-critical{border-left-color:var(--critical);} .evidence.st-serious{border-left-color:var(--serious);}
+.evidence.st-warning{border-left-color:var(--warning);} .evidence.st-good{border-left-color:var(--good);}
+.evidence .head{display:flex; justify-content:space-between; gap:1rem; flex-wrap:wrap; margin-bottom:.4rem;}
+.evidence .head b{font-size:.95rem; font-weight:600;}
+.evidence .src{font-family:ui-monospace,SFMono-Regular,monospace; font-size:.76rem; color:var(--text-muted); display:block; margin:.2rem 0 .5rem;}
+.evidence blockquote{margin:.3rem 0; padding:.5rem .75rem; background:var(--bg); border:1px solid var(--border);
+  border-radius:6px; font-family:ui-monospace,SFMono-Regular,monospace; font-size:.8rem; color:var(--text-secondary);}
+.evidence p{margin:.4rem 0 0; font-size:.88rem; color:var(--text-secondary);}
+.suggestion{background:var(--bg); border:1px dashed var(--border); border-radius:8px; padding:.8rem 1rem; margin-top:.6rem; font-size:.82rem;}
+.suggestion strong{color:var(--text-primary);}
+.suggestion pre{white-space:pre-wrap; font-family:ui-monospace,SFMono-Regular,monospace; font-size:.78rem;
+  background:var(--surface); padding:.6rem .7rem; border-radius:6px; border:1px solid var(--border); margin:.4rem 0 0; color:var(--text-secondary);}
+.trend{display:flex; align-items:center; gap:.5rem; margin-top:.5rem;}
+.trend svg{display:block;}
+.trend .trend-label{font-size:.72rem; color:var(--text-muted);}
+.legend{display:flex; gap:1rem; flex-wrap:wrap; font-size:.76rem; color:var(--text-secondary); margin:.9rem 0 0; padding-bottom:.9rem;}
+.legend span{display:flex; align-items:center; gap:.35rem;}
+.legend svg{width:11px; height:11px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="badge-example">Example data -- replace before use</span>
+  <h1>Audit ur Harness -- {{PROJECT_NAME}}</h1>
+  <p class="sub">Generated {{REPORT_DATE}} &middot; core layers only unless a project-specific section follows</p>
+
+  <div class="limitation">
+    This report is self-attested: it reflects one agent's reading of this project's files, with
+    no independent check that the citations are accurate. Treat scores as a starting point for
+    your own review, not a certified audit.
+  </div>
+
+  <div class="stat-row">
+    <div class="stat-tile"><div class="num">1/7</div><div class="label">applicable core layers enforced</div></div>
+    <div class="stat-tile"><div class="num">3</div><div class="label">named (not enforced)</div></div>
+    <div class="stat-tile"><div class="num">2</div><div class="label">partial</div></div>
+    <div class="stat-tile"><div class="num">1</div><div class="label">absent</div></div>
+    <div class="stat-tile"><div class="num">1</div><div class="label">n/a (excluded)</div></div>
+    <div class="stat-tile"><div class="num">4</div><div class="label">open suggestions</div></div>
+  </div>
+
+  <h2>Layer scores</h2>
+  <p class="chart-hint">Click any layer below to expand its citation, reasoning, and suggestion.</p>
+  <div class="chart">
+    <!-- layer rows begin here -->
+    <details class="layer-card">
+      <summary class="layer-row">
+        <div class="name">Layer 1<b>State &amp; memory</b></div>
+        <div class="bar-col">
+          <div class="track"><div class="fill st-serious" style="width:calc(1/3*100%)"></div></div>
+          <div class="mark st-serious"><svg viewBox="0 0 12 12"><polygon points="6,1 11,10 1,10" fill="currentColor"/></svg>1/3 &middot; Named</div>
+        </div>
+        <span class="chev">&#9662;</span>
+      </summary>
+      <div class="layer-body">
+        <div class="evidence st-serious">
+          <span class="src">README.md &middot; Setup section</span>
+          <blockquote>"Keep progress.md updated between sessions"</blockquote>
+          <p>Written as guidance in the README, but nothing else in the project actually reads
+          or updates progress.md automatically &mdash; no persistent memory file, session log, or
+          changelog is wired into the workflow. Named as intent, not enforced.</p>
+          <div class="suggestion">
+            <strong>SUGGESTION &mdash; Layer 1 (State &amp; Memory), currently 1</strong>
+            <pre>Evidence: progress.md is named as a convention in README.md, but nothing
+enforces it being read or updated between sessions.
+Proposed instruction to your agent:
+"Add a SESSION.md (or AGENTS.md) that you update at the end of every work
+session with: what changed, decisions made, and what's still open -- so a
+new session can resume without re-reading everything."</pre>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <details class="layer-card">
+      <summary class="layer-row">
+        <div class="name">Layer 2<b>Execution environment</b></div>
+        <div class="bar-col">
+          <div class="track"><div class="fill st-serious" style="width:calc(1/3*100%)"></div></div>
+          <div class="mark st-serious"><svg viewBox="0 0 12 12"><polygon points="6,1 11,10 1,10" fill="currentColor"/></svg>1/3 &middot; Named</div>
+        </div>
+        <span class="chev">&#9662;</span>
+      </summary>
+      <div class="layer-body">
+        <div class="evidence st-serious">
+          <span class="src">CONTRIBUTING.md &middot; Workflow</span>
+          <blockquote>"Test changes in the staging environment before merging to main"</blockquote>
+          <p>Sandbox-first is written as policy in the contributing guide, but nothing in the
+          project's own CI config or scripts gates a merge on staging success &mdash; it's a
+          documented intent, not an enforced check.</p>
+          <div class="suggestion">
+            <strong>SUGGESTION &mdash; Layer 2 (Execution Environment), currently 1</strong>
+            <pre>Evidence: staging-first guidance found in CONTRIBUTING.md, but no enforced
+gate in CI or config.
+Proposed instruction to your agent:
+"Before allowing a merge or a write to the real/production target, require a
+passing staging run (a CI check or a config flag set only after N consecutive
+successful staging runs) -- so the staging-first rule holds even if someone
+forgets to check it manually."</pre>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <details class="layer-card">
+      <summary class="layer-row">
+        <div class="name">Layer 3<b>Control &amp; enforcement</b></div>
+        <div class="bar-col">
+          <div class="track"><div class="fill st-warning" style="width:calc(2/3*100%)"></div></div>
+          <div class="mark st-warning"><svg viewBox="0 0 12 12"><path d="M6 1a5 5 0 0 1 0 10z" fill="currentColor"/><circle cx="6" cy="6" r="5" fill="none" stroke="currentColor" stroke-width="1"/></svg>2/3 &middot; Partial</div>
+        </div>
+        <span class="chev">&#9662;</span>
+      </summary>
+      <div class="layer-body">
+        <div class="evidence st-warning">
+          <span class="src">config/limits.yaml</span>
+          <blockquote>"max_daily_spend: 25"</blockquote>
+          <p>A hard budget ceiling is enforced in config, not just mentioned in a doc &mdash;
+          enough for Partial. No evidence yet of an approval gate before an irreversible
+          action, or of a separate kill switch, so it stops short of Enforced.</p>
+        </div>
+      </div>
+    </details>
+
+    <details class="layer-card">
+      <summary class="layer-row">
+        <div class="name">Layer 4<b>Context management</b></div>
+        <div class="bar-col">
+          <div class="track"><div class="fill st-critical" style="width:calc(0/3*100%)"></div></div>
+          <div class="mark st-critical"><svg viewBox="0 0 12 12"><line x1="2" y1="2" x2="10" y2="10" stroke="currentColor" stroke-width="2"/><line x1="10" y1="2" x2="2" y2="10" stroke="currentColor" stroke-width="2"/></svg>0/3 &middot; Absent</div>
+        </div>
+        <span class="chev">&#9662;</span>
+      </summary>
+      <div class="layer-body">
+        <div class="evidence st-critical">
+          <span class="src">No evidence found in scanned files</span>
+          <blockquote>&mdash;</blockquote>
+          <p>No mention of context compaction or a session hand-off process anywhere in the project.</p>
+          <div class="suggestion">
+            <strong>SUGGESTION &mdash; Layer 4 (Context Management), currently 0</strong>
+            <pre>Evidence: no context-compaction or session hand-off mechanism found.
+Proposed instruction to your agent:
+"Add a CONTEXT.md file updated at the end of every session with: what
+changed, what's still open, and any decisions made -- so the next session
+can resume without re-reading everything."</pre>
+          </div>
+          <div class="trend">
+            <svg width="70" height="20" viewBox="0 0 70 20"><polyline points="0,18 35,18 70,18" fill="none" stroke="#6b6b68" stroke-width="2"/></svg>
+            <span class="trend-label">first report &mdash; no trend yet</span>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <details class="layer-card">
+      <summary class="layer-row">
+        <div class="name">Layer 5<b>Reasoning &amp; verification</b></div>
+        <div class="bar-col">
+          <div class="track"><div class="fill st-good" style="width:calc(3/3*100%)"></div></div>
+          <div class="mark st-good"><svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="5" fill="currentColor"/></svg>3/3 &middot; Enforced</div>
+        </div>
+        <span class="chev">&#9662;</span>
+      </summary>
+      <div class="layer-body">
+        <div class="evidence st-good">
+          <span class="src">agents/validator.py</span>
+          <blockquote>"Validator receives only the output, never the scoring rubric"</blockquote>
+          <p>Rubric isolation, fully enforced in code. Nothing to suggest here.</p>
+        </div>
+      </div>
+    </details>
+
+    <div class="layer-row is-na">
+      <div class="name">Layer 6<b>Tool design</b></div>
+      <div class="na-note"><span class="na-pill">N/A</span>Single agent, single fixed toolset &mdash; no multi-role tool scoping is meaningful here.</div>
+    </div>
+
+    <details class="layer-card">
+      <summary class="layer-row">
+        <div class="name">Layer 7<b>Long-horizon execution</b></div>
+        <div class="bar-col">
+          <div class="track"><div class="fill st-serious" style="width:calc(1/3*100%)"></div></div>
+          <div class="mark st-serious"><svg viewBox="0 0 12 12"><polygon points="6,1 11,10 1,10" fill="currentColor"/></svg>1/3 &middot; Named</div>
+        </div>
+        <span class="chev">&#9662;</span>
+      </summary>
+      <div class="layer-body">
+        <div class="evidence st-serious">
+          <span class="src">docs/notes.md</span>
+          <blockquote>"Can re-run just the research step if something's missing, instead of
+          starting over"</blockquote>
+          <p>The notes describe resuming from a specific gap rather than restarting from
+          scratch, but this depends on a person remembering to do it manually &mdash; there's no
+          task/status file that lets the system resume on its own.</p>
+          <div class="suggestion">
+            <strong>SUGGESTION &mdash; Layer 7 (Long-Horizon Execution), currently 1</strong>
+            <pre>Evidence: gap-targeted re-runs are described in docs/notes.md, but rely on
+manual judgment rather than a tracked status.
+Proposed instruction to your agent:
+"Add a tasks.md or status.json that tracks each sub-agent's task status (done /
+in-progress / not-started), so a long-horizon run can resume from exactly where
+it left off without someone having to remember to re-trigger it manually."</pre>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <details class="layer-card">
+      <summary class="layer-row">
+        <div class="name">Layer 8<b>Observability &amp; learning</b></div>
+        <div class="bar-col">
+          <div class="track"><div class="fill st-warning" style="width:calc(2/3*100%)"></div></div>
+          <div class="mark st-warning"><svg viewBox="0 0 12 12"><path d="M6 1a5 5 0 0 1 0 10z" fill="currentColor"/><circle cx="6" cy="6" r="5" fill="none" stroke="currentColor" stroke-width="1"/></svg>2/3 &middot; Partial</div>
+        </div>
+        <span class="chev">&#9662;</span>
+      </summary>
+      <div class="layer-body">
+        <div class="evidence st-warning">
+          <span class="src">logs/run_log.csv &middot; header row</span>
+          <blockquote>"stage,status,cost,duration"</blockquote>
+          <p>The logging half is real and enforced: a run log capturing outcome and cost per
+          stage. The learning half is missing &mdash; nothing found turns a past failure into a
+          standing rule, so the same mistake can recur silently. Scored Partial, not Enforced,
+          because only one of the two required halves is present.</p>
+        </div>
+      </div>
+    </details>
+    <!-- layer rows end here -->
+
+    <div class="legend">
+      <span><svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="5" fill="#0ca30c"/></svg>Enforced (3)</span>
+      <span><svg viewBox="0 0 12 12"><path d="M6 1a5 5 0 0 1 0 10z" fill="#fab219"/><circle cx="6" cy="6" r="5" fill="none" stroke="#fab219"/></svg>Partial (2)</span>
+      <span><svg viewBox="0 0 12 12"><polygon points="6,1 11,10 1,10" fill="#ec835a"/></svg>Named (1)</span>
+      <span><svg viewBox="0 0 12 12"><line x1="2" y1="2" x2="10" y2="10" stroke="#d03b3b" stroke-width="2"/><line x1="10" y1="2" x2="2" y2="10" stroke="#d03b3b" stroke-width="2"/></svg>Absent (0)</span>
+      <span><span class="na-pill" style="margin-right:0;">N/A</span>Not applicable to this project</span>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       PROJECT-SPECIFIC LAYERS -- fully optional section, in two tabs.
+       Active tab: confirmed custom layers (from harness/config.md, scored
+       and displayed exactly like a core layer) and agent-identified layers
+       (noticed during Gather, not yet in config.md -- scored 0-3 in full,
+       same as any other layer, but never counted in the core stat-row
+       above, and always paired with a suggestion to add them to config.md
+       that the agent never applies itself). Rejected tab: any
+       agent-identified layer a human has explicitly declined, recorded in
+       harness/rejected.md -- moved here instead of being re-proposed every
+       run, shown muted with its original evidence for reference only, no
+       suggestion box (there's nothing left to suggest -- it was already
+       decided). Omit the tab control entirely and show only the Active
+       content directly if harness/rejected.md has no entries yet. Update
+       the "Rejected (N)" label's count to match how many entries exist.
+       ============================================================ -->
+  <h2>Project-specific layers</h2>
+  <p class="chart-hint">Additive, scored the same 0-3 way &middot; kept separate from the core 8 so those stay comparable across projects.</p>
+  <div class="layer-tabs">
+    <input type="radio" name="layer-tabs" id="tab-active" checked>
+    <input type="radio" name="layer-tabs" id="tab-rejected">
+    <input type="checkbox" id="reject-data-retention">
+    <div class="tab-bar">
+      <label for="tab-active">Active</label>
+      <label for="tab-rejected">Rejected (1)</label>
+    </div>
+
+    <div class="tab-panel panel-active">
+      <div class="chart">
+        <details class="layer-card">
+          <summary class="layer-row">
+            <div class="name">Custom 1<b>Regulatory logging</b></div>
+            <div class="bar-col">
+              <div class="track"><div class="fill st-warning" style="width:calc(2/3*100%)"></div></div>
+              <div class="mark st-warning"><svg viewBox="0 0 12 12"><path d="M6 1a5 5 0 0 1 0 10z" fill="currentColor"/><circle cx="6" cy="6" r="5" fill="none" stroke="currentColor" stroke-width="1"/></svg>2/3 &middot; Partial</div>
+            </div>
+            <span class="chev">&#9662;</span>
+          </summary>
+          <div class="layer-body">
+            <div class="evidence st-warning">
+              <span class="src">compliance/audit_trail.py</span>
+              <blockquote>"Every access to a customer record is written to audit_log with a
+              timestamp and actor id"</blockquote>
+              <p>Access logging is enforced in code, defined in harness/config.md as a
+              project-specific layer since this project handles regulated customer data.
+              No evidence yet of a defined retention policy or an export path for
+              auditors, so it stops short of Enforced.</p>
+            </div>
+          </div>
+        </details>
+      </div>
+
+      <p class="chart-hint" style="margin-top:1.6rem;">Agent-identified this run &mdash; scored in full below, but not yet
+      locked into harness/config.md, so the name and definition aren't guaranteed to stay the same on a future run until a
+      human adds it.</p>
+      <div class="candidates">
+        <details class="layer-card" id="pending-data-retention">
+          <summary class="layer-row">
+            <div class="name">Agent-identified<b>Data retention&nbsp;<span class="cand-badge">Not yet persisted</span></b></div>
+            <div class="bar-col">
+              <div class="track"><div class="fill st-warning" style="width:calc(2/3*100%)"></div></div>
+              <div class="mark st-warning"><svg viewBox="0 0 12 12"><path d="M6 1a5 5 0 0 1 0 10z" fill="currentColor"/><circle cx="6" cy="6" r="5" fill="none" stroke="currentColor" stroke-width="1"/></svg>2/3 &middot; Partial</div>
+            </div>
+            <span class="chev">&#9662;</span>
+          </summary>
+          <div class="layer-body">
+            <div class="evidence st-warning">
+              <span class="src">storage/cleanup_job.py</span>
+              <blockquote>"Records older than 90 days are purged automatically"</blockquote>
+              <p>This didn't fit any of the 8 core layers, but a real, evidenced retention
+              mechanism recurs across the codebase, enforced in code &mdash; scored Partial on
+              the same 0-3 scale as any core layer. No evidence yet of a defined retention
+              policy or an export path for auditors, so it stops short of Enforced. Not
+              folded into the core-8 stats above either way.</p>
+              <div class="suggestion" id="accept-data-retention">
+                <strong>SUGGESTION &mdash; add "Data Retention" to harness/config.md, agent-identified this run, currently 2</strong>
+                <pre>Evidence: an automatic 90-day data-retention purge found in
+storage/cleanup_job.py, not covered by any of the 8 core layers, scored
+Partial (2/3) this run.
+Proposed instruction to your agent (only after you confirm you want this):
+"Add a custom layer 'Data Retention' to harness/config.md so future audits
+score it under this exact name every time, instead of possibly re-describing
+the same gap differently next run."</pre>
+              </div>
+              <div class="decision-row">
+                <a class="btn-decision btn-accept" href="#accept-data-retention">Accept &rarr; jump to the config.md block</a>
+                <label class="btn-decision btn-reject" for="reject-data-retention">Reject &rarr; move to Rejected</label>
+              </div>
+              <p class="rejected-meta">Neither button writes to a file by itself &mdash; see the note in the
+              Rejected tab after clicking Reject, or hand the highlighted block above to your agent after clicking Accept.</p>
+            </div>
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <div class="tab-panel panel-rejected">
+      <p class="chart-hint">Previously proposed, explicitly declined by a human &mdash; kept here for reference
+      only, not re-suggested each run. Sourced from harness/rejected.md. To reconsider one, remove or edit its
+      entry there yourself; nothing here does that automatically.</p>
+      <div class="candidates">
+        <!-- This mirror card is the ONLY hidden-by-default one here (see .pending-mirror), shown the moment
+             the matching Reject checkbox up in .layer-tabs is checked. It's a preview, not a saved decision --
+             its job is to hand the reader the exact harness/rejected.md entry to relay to their agent. Once
+             that entry actually exists in harness/rejected.md, drop this mirror card and its Active/checkbox
+             pair entirely on the next run's copy of this template, and add a normal confirmed entry like the
+             one below instead. -->
+        <details class="layer-card rejected-card pending-mirror" id="pending-data-retention-rejected">
+          <summary class="layer-row">
+            <div class="name">Agent-identified<b>Data retention&nbsp;<span class="just-rejected-badge">Rejected this viewing</span></b></div>
+            <div class="bar-col">
+              <div class="mark" style="color:var(--text-muted);">Hidden in your browser &mdash; not yet saved</div>
+            </div>
+            <span class="chev">&#9662;</span>
+          </summary>
+          <div class="layer-body">
+            <div class="evidence">
+              <span class="src">storage/cleanup_job.py</span>
+              <blockquote>"Records older than 90 days are purged automatically"</blockquote>
+              <div class="reminder-note">This is only hidden in your browser right now, not saved anywhere. To
+              make sure it doesn't come back on the next run, hand this block to your agent:</div>
+              <div class="suggestion">
+                <strong>ADD TO harness/rejected.md</strong>
+                <pre>## Data Retention
+Rejected: {{REPORT_DATE}}
+Originally proposed evidence: storage/cleanup_job.py -- "Records older than 90 days are purged automatically"
+Reason (optional): &lt;fill in why, or delete this line&gt;</pre>
+              </div>
+            </div>
+          </div>
+        </details>
+        <details class="layer-card rejected-card">
+          <summary class="layer-row">
+            <div class="name">Rejected<b>Legacy cache expiry&nbsp;<span class="rejected-badge">Rejected</span></b></div>
+            <div class="bar-col">
+              <div class="mark" style="color:var(--text-muted);">Declined, not tracked</div>
+            </div>
+            <span class="chev">&#9662;</span>
+          </summary>
+          <div class="layer-body">
+            <div class="evidence">
+              <span class="src">storage/legacy_cache.py</span>
+              <blockquote>"Cache entries expire after 24 hours"</blockquote>
+              <p>Originally proposed as a possible custom layer; a human explicitly declined it.</p>
+              <div class="rejected-meta">Originally proposed 2026-07-02 &middot; rejected 2026-07-03 &middot; reason on file: "not relevant to this project's audit scope" (from harness/rejected.md)</div>
+            </div>
+          </div>
+        </details>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
