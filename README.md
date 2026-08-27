@@ -38,6 +38,8 @@ Everything lands inside a `harness/` folder in your project, gitignored by defau
 
 This audit is self-attested: whatever agent runs it is reporting on its own reading of the project, with no independent verification that its citations are accurate. Treat the report as a strong starting point for your own review, not a certified audit. See `SKILL.md` for the full limitation notes, including a narrower one specific to agent-identified custom layers.
 
+Consider running the audit with your most capable model rather than your cheapest one: a stronger model is less prone to self-preference bias and better equipped to reason through the evidence, though this hasn't been tested on harness audits specifically.
+
 ## License
 
 Add your chosen license here before publishing (see the setup notes you were given alongside this folder).
